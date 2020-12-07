@@ -27,8 +27,8 @@ func (indexHandler *IndexHandler) ServeHTTP(
 		responseWriter.Write([]byte("Bad Request"))
 		indexHandler.log.Fatal(err.Error())
 	} else {
-		indexHandler.log.Println("Hello World!")
-		indexHandler.log.Print(string(data))
+		indexHandler.log.Println("Server listening")
+		indexHandler.log.Printf("Data: %s\n", data)
 		responseWriter.Write(data)
 	}
 }
