@@ -27,9 +27,25 @@ func (products *Products) ToJSON(writer io.Writer) error {
 	return encoder.Encode(products)
 }
 
+// FromJSON decode product
+func (product *Product) FromJSON(reader io.Reader) error {
+	decoder := json.NewDecoder(reader)
+	return decoder.Decode(product)
+}
+
 // GetProducts list
 func GetProducts() Products {
 	return productList
+}
+
+// AddProduct to product list
+func AddProduct(product *Product) {
+	product.ID = getNextID()
+	productList = append(productList, product)
+}
+
+func getNextID() int {
+	return len(productList) + 1
 }
 
 var productList = []*Product{
