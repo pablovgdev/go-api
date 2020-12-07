@@ -14,7 +14,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/", indexHandler)
-	mux.Handle("/products", productHandler)
+	mux.Handle("/products/", productHandler)
 
 	http.ListenAndServe(":8000", mux)
 }

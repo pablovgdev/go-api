@@ -4,6 +4,9 @@ import (
 	"go-api/data"
 	"log"
 	"net/http"
+	"net/url"
+	"path"
+	"strconv"
 )
 
 // ProductHandler struct
@@ -25,6 +28,8 @@ func (productHandler *ProductHandler) ServeHTTP(
 		productHandler.getProducts(responseWriter, request)
 	} else if request.Method == http.MethodPost {
 		productHandler.addProduct(responseWriter, request)
+	} else if request.Method == http.MethodPut {
+		productHandler.updateProduct(responseWriter, request)
 	} else {
 		responseWriter.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -40,8 +45,7 @@ func (productHandler *ProductHandler) getProducts(
 	err := products.ToJSON(responseWriter)
 
 	if err != nil {
-		responseWriter.WriteHeader(http.StatusInternalServerError)
-		responseWriter.Write([]byte("Unable to encode json"))
+		http.Error(responseWriter, "Unable to encode json", http.StatusInternalServerError)
 	}
 }
 
@@ -55,9 +59,46 @@ func (productHandler *ProductHandler) addProduct(
 	err := product.FromJSON(request.Body)
 
 	if err != nil {
-		responseWriter.WriteHeader(http.StatusInternalServerError)
-		responseWriter.Write([]byte("Unable to decode json"))
-	} else {
-		data.AddProduct(product)
+		http.Error(responseWriter, "Unable to decode json", http.StatusInternalServerError)
+		return
+	}
+
+	data.AddProduct(product)
+}
+
+func (productHandler *ProductHandler) updateProduct(
+	responseWriter http.ResponseWriter,
+	request *http.Request,
+) {
+	productHandler.log.Println("PUT REQUEST")
+
+	url, err := url.Parse(request.URL.Path)
+
+	if err != nil {
+		http.Error(responseWriter, "Unable to parse products url", http.StatusBadRequest)
+		return
+	}
+
+	idString := path.Base(url.Path)
+	id, err := strconv.Atoi(idString)
+
+	if err != nil {
+		http.Error(responseWriter, "Unable to parse product id from url", http.StatusBadRequest)
+		return
+	}
+
+	product := &data.Product{}
+	err = product.FromJSON(request.Body)
+
+	if err != nil {
+		http.Error(responseWriter, "Unable to decode json", http.StatusInternalServerError)
+		return
+	}
+
+	err = data.UpdateProduct(id, product)
+
+	if err != nil {
+		http.Error(responseWriter, "Product not found", http.StatusBadRequest)
+		return
 	}
 }
