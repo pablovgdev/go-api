@@ -1,12 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"go-api/data"
 	"log"
 	"net/http"
-	"net/url"
-	"path"
 	"strconv"
+
+	"github.com/gorilla/mux"
 )
 
 // ProductHandler struct
@@ -19,23 +20,8 @@ func NewProductHandler(log *log.Logger) *ProductHandler {
 	return &ProductHandler{log}
 }
 
-// ServeHTTP products handlers
-func (productHandler *ProductHandler) ServeHTTP(
-	responseWriter http.ResponseWriter,
-	request *http.Request,
-) {
-	if request.Method == http.MethodGet {
-		productHandler.getProducts(responseWriter, request)
-	} else if request.Method == http.MethodPost {
-		productHandler.addProduct(responseWriter, request)
-	} else if request.Method == http.MethodPut {
-		productHandler.updateProduct(responseWriter, request)
-	} else {
-		responseWriter.WriteHeader(http.StatusMethodNotAllowed)
-	}
-}
-
-func (productHandler *ProductHandler) getProducts(
+// GetProducts returns a slice of products
+func (productHandler *ProductHandler) GetProducts(
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 ) {
@@ -49,56 +35,59 @@ func (productHandler *ProductHandler) getProducts(
 	}
 }
 
-func (productHandler *ProductHandler) addProduct(
+// AddProduct add a product to the product list
+func (productHandler *ProductHandler) AddProduct(
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 ) {
 	productHandler.log.Println("POST REQUEST")
-
-	product := &data.Product{}
-	err := product.FromJSON(request.Body)
-
-	if err != nil {
-		http.Error(responseWriter, "Unable to decode json", http.StatusInternalServerError)
-		return
-	}
-
+	product := request.Context().Value(KeyProduct{}).(*data.Product)
 	data.AddProduct(product)
 }
 
-func (productHandler *ProductHandler) updateProduct(
+// UpdateProduct modifies a product in the product list
+func (productHandler *ProductHandler) UpdateProduct(
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 ) {
 	productHandler.log.Println("PUT REQUEST")
 
-	url, err := url.Parse(request.URL.Path)
-
-	if err != nil {
-		http.Error(responseWriter, "Unable to parse products url", http.StatusBadRequest)
-		return
-	}
-
-	idString := path.Base(url.Path)
-	id, err := strconv.Atoi(idString)
+	vars := mux.Vars(request)
+	id, err := strconv.Atoi(vars["id"])
 
 	if err != nil {
 		http.Error(responseWriter, "Unable to parse product id from url", http.StatusBadRequest)
 		return
 	}
 
-	product := &data.Product{}
-	err = product.FromJSON(request.Body)
-
-	if err != nil {
-		http.Error(responseWriter, "Unable to decode json", http.StatusInternalServerError)
-		return
-	}
-
+	product := request.Context().Value(KeyProduct{}).(*data.Product)
 	err = data.UpdateProduct(id, product)
 
 	if err != nil {
 		http.Error(responseWriter, "Product not found", http.StatusBadRequest)
 		return
 	}
+}
+
+// KeyProduct type
+type KeyProduct struct{}
+
+// ProductValidationMiddleware parses a product from JSON and saves it in the request
+func (productHandler *ProductHandler) ProductValidationMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.Method == "POST" || request.Method == "PUT" {
+			product := &data.Product{}
+			err := product.FromJSON(request.Body)
+
+			if err != nil {
+				http.Error(responseWriter, "Unable to decode json", http.StatusInternalServerError)
+				return
+			}
+
+			ctx := context.WithValue(request.Context(), KeyProduct{}, product)
+			request = request.WithContext(ctx)
+		}
+
+		next.ServeHTTP(responseWriter, request)
+	})
 }
